@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 Twitter Paper Downloader (ブラウザ版)
 =====================================
@@ -22,7 +23,6 @@ import logging
 import argparse
 import hashlib
 from pathlib import Path
-from __future__ import annotations
 from typing import Optional
 from urllib.parse import urlparse, unquote
 
