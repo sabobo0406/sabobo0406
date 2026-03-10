@@ -72,6 +72,19 @@ PAPER_DOMAINS = [
     "ajog.org",
     "greenjournal.org",
     "obgyn.onlinelibrary.wiley.com",
+    "cell.com",
+    "pnas.org",
+    "nih.gov",
+    "plos.org",
+    "journals.plos.org",
+    "frontiersin.org",
+    "mdpi.com",
+    "tandfonline.com",
+    "sagepub.com",
+    "cochranelibrary.com",
+    "jstage.jst.go.jp",
+    "researchgate.net",
+    "ssrn.com",
 ]
 
 DOI_PATTERN = re.compile(r"10\.\d{4,9}/[^\s,;\"'<>\])}]+")
@@ -165,6 +178,25 @@ def scrape_tweets(username: str, headless: bool = True, scroll_count: int = SCRO
                         elif href.startswith("http"):
                             links.append(href)
 
+                # カード（プレビュー付きリンク）からURLを取得
+                card = article.locator('[data-testid="card.wrapper"]')
+                if card.count() > 0:
+                    card_links = card.locator("a[href]")
+                    for ci in range(card_links.count()):
+                        card_href = card_links.nth(ci).get_attribute("href")
+                        if card_href and card_href not in links:
+                            if "t.co/" in card_href:
+                                # カード内のt.coリンクも収集
+                                links.append(card_href)
+                            elif card_href.startswith("http"):
+                                links.append(card_href)
+                    # カードのaria-labelやspan等からURLテキストを抽出
+                    card_text = card.inner_text()
+                    for match in URL_PATTERN.findall(card_text):
+                        clean = match.rstrip(".,;:!?)")
+                        if clean not in links:
+                            links.append(clean)
+
                 # タイムスタンプ取得
                 time_el = article.locator("time")
                 timestamp = ""
@@ -205,17 +237,34 @@ def resolve_tco_links(tweets: list[dict], page) -> list[dict]:
 
     for tco in tco_links:
         try:
+            # HEADリクエストで解決を試みる
             resp = requests.head(
                 tco,
                 allow_redirects=True,
                 timeout=10,
-                headers={"User-Agent": "Mozilla/5.0"},
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
             )
             if resp.url != tco:
                 resolved[tco] = resp.url
                 logger.debug(f"  {tco} -> {resp.url}")
+                continue
         except requests.RequestException:
             pass
+        # HEADが失敗またはリダイレクトされなかった場合、GETでフォールバック
+        try:
+            resp = requests.get(
+                tco,
+                allow_redirects=True,
+                timeout=15,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+                stream=True,
+            )
+            resp.close()
+            if resp.url != tco:
+                resolved[tco] = resp.url
+                logger.debug(f"  {tco} -> {resp.url} (GET)")
+        except requests.RequestException:
+            logger.debug(f"  {tco} の解決に失敗")
 
     # 解決したURLで置換
     for tweet in tweets:
