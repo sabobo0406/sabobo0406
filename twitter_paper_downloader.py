@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 """
-Twitter Paper Downloader (ブラウザ版)
-=====================================
-X(Twitter)アカウント @ajog_thegray をブラウザで開いて
-ツイートから論文リンクを抽出し、PDFをダウンロードするツール。
+Twitter Paper Checker (ブラウザ版)
+==================================
+X(Twitter)アカウントのツイートを取得し、
+- ツイート内容の要約
+- ツイート内リンクの生存確認
+- 論文リンクかどうかの判定
+を行うツール。
 
 API不要 - Playwrightでブラウザを自動操作します。
 
@@ -21,9 +24,8 @@ import json
 import time
 import logging
 import argparse
-import hashlib
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse, unquote
 
 import requests
@@ -42,10 +44,9 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 TARGET_USERNAME = os.getenv("TARGET_USERNAME", "ajog_thegray")
-DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "papers")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "results")
 CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "60"))
 STATE_FILE = os.getenv("STATE_FILE", "downloader_state.json")
-UNPAYWALL_EMAIL = os.getenv("UNPAYWALL_EMAIL", "")
 SCROLL_COUNT = int(os.getenv("SCROLL_COUNT", "5"))
 
 # 論文関連ドメインのパターン
@@ -96,7 +97,7 @@ def load_state() -> dict:
     if Path(STATE_FILE).exists():
         with open(STATE_FILE, "r") as f:
             return json.load(f)
-    return {"seen_urls": [], "downloaded_dois": [], "downloaded_urls": []}
+    return {"seen_urls": [], "checked_tweets": []}
 
 
 def save_state(state: dict):
@@ -130,14 +131,21 @@ def scrape_tweets(username: str, headless: bool = True, scroll_count: int = SCRO
         except PlaywrightTimeout:
             logger.warning("ページ読み込みがタイムアウトしましたが、続行します")
 
-        # ログイン要求ポップアップを閉じる試み
-        try:
-            close_btn = page.locator('[data-testid="xMigrationBottomBar"] button, [role="button"][aria-label="Close"]')
-            if close_btn.count() > 0:
-                close_btn.first.click(timeout=3000)
-                time.sleep(1)
-        except Exception:
-            pass
+        # ログインウォール検出
+        page_text = page.inner_text("body")
+        if "ログイン" in page_text and "このアカウントは存在しません" not in page_text:
+            # ログインポップアップを閉じる試み
+            try:
+                close_btn = page.locator(
+                    '[data-testid="xMigrationBottomBar"] button, '
+                    '[role="button"][aria-label="Close"], '
+                    '[data-testid="app-bar-close"]'
+                )
+                if close_btn.count() > 0:
+                    close_btn.first.click(timeout=3000)
+                    time.sleep(1)
+            except Exception:
+                pass
 
         # ページをスクロールしてツイートを読み込む
         logger.info(f"{scroll_count} 回スクロールしてツイートを読み込みます...")
@@ -149,6 +157,13 @@ def scrape_tweets(username: str, headless: bool = True, scroll_count: int = SCRO
         tweet_articles = page.locator('article[data-testid="tweet"]')
         count = tweet_articles.count()
         logger.info(f"{count} 件のツイート要素を検出しました")
+
+        if count == 0:
+            logger.warning(
+                "ツイートが検出できませんでした。"
+                "X.comがログインを要求している可能性があります。"
+                "--head オプションでブラウザを表示して確認してください。"
+            )
 
         for idx in range(count):
             try:
@@ -164,11 +179,9 @@ def scrape_tweets(username: str, headless: bool = True, scroll_count: int = SCRO
                 for li in range(a_tags.count()):
                     href = a_tags.nth(li).get_attribute("href")
                     if href:
-                        # t.co リンクの場合、title属性やテキストから元URLを取得
                         if "t.co/" in href:
                             title = a_tags.nth(li).get_attribute("title") or ""
                             link_text = a_tags.nth(li).inner_text()
-                            # title属性に元URLが入っていることがある
                             if title.startswith("http"):
                                 links.append(title)
                             elif link_text.startswith("http"):
@@ -186,11 +199,9 @@ def scrape_tweets(username: str, headless: bool = True, scroll_count: int = SCRO
                         card_href = card_links.nth(ci).get_attribute("href")
                         if card_href and card_href not in links:
                             if "t.co/" in card_href:
-                                # カード内のt.coリンクも収集
                                 links.append(card_href)
                             elif card_href.startswith("http"):
                                 links.append(card_href)
-                    # カードのaria-labelやspan等からURLテキストを抽出
                     card_text = card.inner_text()
                     for match in URL_PATTERN.findall(card_text):
                         clean = match.rstrip(".,;:!?)")
@@ -237,7 +248,6 @@ def resolve_tco_links(tweets: list[dict], page) -> list[dict]:
 
     for tco in tco_links:
         try:
-            # HEADリクエストで解決を試みる
             resp = requests.head(
                 tco,
                 allow_redirects=True,
@@ -250,7 +260,6 @@ def resolve_tco_links(tweets: list[dict], page) -> list[dict]:
                 continue
         except requests.RequestException:
             pass
-        # HEADが失敗またはリダイレクトされなかった場合、GETでフォールバック
         try:
             resp = requests.get(
                 tco,
@@ -266,7 +275,6 @@ def resolve_tco_links(tweets: list[dict], page) -> list[dict]:
         except requests.RequestException:
             logger.debug(f"  {tco} の解決に失敗")
 
-    # 解決したURLで置換
     for tweet in tweets:
         tweet["links"] = [resolved.get(link, link) for link in tweet["links"]]
 
@@ -274,135 +282,116 @@ def resolve_tco_links(tweets: list[dict], page) -> list[dict]:
     return tweets
 
 
-# ── URL / DOI 抽出 ────────────────────────────────────────
-def extract_dois(urls: list[str], text: str = "") -> list[str]:
-    dois = set()
-    for url in urls:
-        if "doi.org/" in url:
-            parts = url.split("doi.org/", 1)
-            if len(parts) == 2:
-                doi = unquote(parts[1]).strip().rstrip(".,;:!?)")
-                dois.add(doi)
-    for match in DOI_PATTERN.findall(text):
-        doi = match.rstrip(".,;:!?)")
-        dois.add(doi)
-    return list(dois)
+# ── リンクチェック ────────────────────────────────────────
+def check_link(url: str) -> dict:
+    """URLの生存確認と論文リンク判定を行う"""
+    result = {
+        "url": url,
+        "status": None,
+        "alive": False,
+        "is_paper": False,
+        "paper_source": None,
+        "doi": None,
+        "final_url": url,
+        "error": None,
+    }
 
-
-def is_paper_url(url: str) -> bool:
+    # 論文リンク判定
     parsed = urlparse(url)
     domain = parsed.netloc.lower().lstrip("www.")
-    return any(d in domain for d in PAPER_DOMAINS)
+    for paper_domain in PAPER_DOMAINS:
+        if paper_domain in domain:
+            result["is_paper"] = True
+            result["paper_source"] = paper_domain
+            break
 
+    # DOI抽出
+    if "doi.org/" in url:
+        parts = url.split("doi.org/", 1)
+        if len(parts) == 2:
+            result["doi"] = unquote(parts[1]).strip().rstrip(".,;:!?)")
+    else:
+        doi_matches = DOI_PATTERN.findall(url)
+        if doi_matches:
+            result["doi"] = doi_matches[0].rstrip(".,;:!?)")
 
-def filter_paper_urls(urls: list[str]) -> list[str]:
-    return [u for u in urls if is_paper_url(u)]
+    # テキスト内のDOIパターンでも論文判定
+    if result["doi"]:
+        result["is_paper"] = True
 
-
-# ── DOI -> PDF 解決 ───────────────────────────────────────
-def resolve_doi_to_pdf(doi: str) -> Optional[str]:
-    if not UNPAYWALL_EMAIL:
-        logger.warning("UNPAYWALL_EMAIL 未設定のため、Unpaywall APIをスキップします")
-        return None
-    url = f"https://api.unpaywall.org/v2/{doi}"
-    params = {"email": UNPAYWALL_EMAIL}
+    # 生存確認
     try:
-        resp = requests.get(url, params=params, timeout=30)
-        if resp.status_code == 200:
-            data = resp.json()
-            best = data.get("best_oa_location")
-            if best:
-                pdf_url = best.get("url_for_pdf") or best.get("url")
-                if pdf_url:
-                    logger.info(f"Unpaywall: {doi} -> {pdf_url}")
-                    return pdf_url
-            for loc in data.get("oa_locations", []):
-                pdf_url = loc.get("url_for_pdf") or loc.get("url")
-                if pdf_url:
-                    logger.info(f"Unpaywall (alt): {doi} -> {pdf_url}")
-                    return pdf_url
-    except requests.RequestException as e:
-        logger.warning(f"Unpaywall APIエラー ({doi}): {e}")
-    return None
+        resp = requests.head(
+            url,
+            allow_redirects=True,
+            timeout=15,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml,*/*",
+            },
+        )
+        result["status"] = resp.status_code
+        result["alive"] = resp.status_code < 400
+        result["final_url"] = resp.url
+    except requests.RequestException:
+        # HEADが失敗した場合GETで再試行
+        try:
+            resp = requests.get(
+                url,
+                allow_redirects=True,
+                timeout=15,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "text/html,application/xhtml+xml,*/*",
+                },
+                stream=True,
+            )
+            resp.close()
+            result["status"] = resp.status_code
+            result["alive"] = resp.status_code < 400
+            result["final_url"] = resp.url
+        except requests.RequestException as e:
+            result["error"] = str(e)
+            result["alive"] = False
+
+    # リダイレクト先で再度論文判定
+    if not result["is_paper"] and result["final_url"] != url:
+        final_parsed = urlparse(result["final_url"])
+        final_domain = final_parsed.netloc.lower().lstrip("www.")
+        for paper_domain in PAPER_DOMAINS:
+            if paper_domain in final_domain:
+                result["is_paper"] = True
+                result["paper_source"] = paper_domain
+                break
+
+    return result
 
 
-def try_direct_pdf_from_url(url: str) -> Optional[str]:
-    if "arxiv.org/abs/" in url:
-        return url.replace("/abs/", "/pdf/") + ".pdf"
-    if "arxiv.org/pdf/" in url:
-        return url if url.endswith(".pdf") else url + ".pdf"
-    if ("biorxiv.org" in url or "medrxiv.org" in url) and "/content/" in url:
-        if not url.endswith(".full.pdf"):
-            base = url.split("?")[0].rstrip("/")
-            return base + ".full.pdf"
-    if "ncbi.nlm.nih.gov/pmc/articles/" in url:
-        pmc_match = re.search(r"PMC\d+", url)
-        if pmc_match:
-            pmc_id = pmc_match.group()
-            return f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmc_id}/pdf/"
-    if url.lower().endswith(".pdf"):
-        return url
-    return None
+def summarize_tweet(text: str) -> str:
+    """ツイートテキストを要約する（最初の200文字 + リンクを除去した要約）"""
+    # URLを除去
+    clean_text = URL_PATTERN.sub("", text).strip()
+    # 連続空白を整理
+    clean_text = re.sub(r"\s+", " ", clean_text).strip()
 
+    if not clean_text:
+        return "(テキストなし - リンクのみのツイート)"
 
-# ── PDF ダウンロード ──────────────────────────────────────
-def download_pdf(pdf_url: str, filename: str) -> bool:
-    download_path = Path(DOWNLOAD_DIR)
-    download_path.mkdir(parents=True, exist_ok=True)
-    filepath = download_path / filename
-    if filepath.exists():
-        logger.info(f"既にダウンロード済み: {filename}")
-        return True
-    headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; PaperDownloader/1.0)",
-        "Accept": "application/pdf,*/*",
-    }
-    try:
-        resp = requests.get(pdf_url, headers=headers, timeout=60, stream=True)
-        resp.raise_for_status()
-        content_type = resp.headers.get("Content-Type", "")
-        first_chunk = b""
-        with open(filepath, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                if not first_chunk:
-                    first_chunk = chunk
-                f.write(chunk)
-        if not first_chunk.startswith(b"%PDF") and "pdf" not in content_type.lower():
-            logger.warning(f"PDFではない可能性: {filename} (Content-Type: {content_type})")
-            filepath.unlink()
-            return False
-        size_mb = filepath.stat().st_size / (1024 * 1024)
-        logger.info(f"ダウンロード完了: {filename} ({size_mb:.1f} MB)")
-        return True
-    except requests.RequestException as e:
-        logger.error(f"ダウンロード失敗 ({pdf_url}): {e}")
-        if filepath.exists():
-            filepath.unlink()
-        return False
+    # 200文字以内ならそのまま
+    if len(clean_text) <= 200:
+        return clean_text
 
-
-def make_filename(doi: str = "", url: str = "", tweet_text: str = "") -> str:
-    if doi:
-        safe = re.sub(r"[^\w\-.]", "_", doi)
-        return f"{safe}.pdf"
-    if url:
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-        parsed = urlparse(url)
-        path_part = parsed.path.strip("/").split("/")[-1] if parsed.path else ""
-        safe_part = re.sub(r"[^\w\-.]", "_", path_part)[:50]
-        return f"{safe_part}_{url_hash}.pdf"
-    return f"paper_{hashlib.md5(tweet_text.encode()).hexdigest()[:12]}.pdf"
+    return clean_text[:200] + "..."
 
 
 # ── メイン処理 ────────────────────────────────────────────
-def process_tweet(tweet: dict, state: dict) -> list[str]:
+def process_tweet(tweet: dict, state: dict) -> dict:
+    """ツイートを処理して要約とリンクチェック結果を返す"""
     text = tweet.get("text", "")
     links = tweet.get("links", [])
     timestamp = tweet.get("timestamp", "")
-    downloaded = []
 
     logger.info(f"--- ツイート処理 ({timestamp}) ---")
-    logger.info(f"テキスト: {text[:120]}...")
 
     # テキスト内のURLも追加
     for match in URL_PATTERN.findall(text):
@@ -410,52 +399,148 @@ def process_tweet(tweet: dict, state: dict) -> list[str]:
         if clean not in links:
             links.append(clean)
 
-    dois = extract_dois(links, text)
-    paper_urls = filter_paper_urls(links)
-
-    if not dois and not paper_urls:
-        logger.info("論文関連のURLが見つかりませんでした")
-        return downloaded
-
-    logger.info(f"  DOI: {dois}, 論文URL: {len(paper_urls)}件")
-
-    # DOIベースのダウンロード
-    for doi in dois:
-        if doi in state["downloaded_dois"]:
-            logger.info(f"既にダウンロード済みDOI: {doi}")
+    # 内部リンク（x.comへのリンク等）を除外
+    external_links = []
+    for link in links:
+        parsed = urlparse(link)
+        domain = parsed.netloc.lower()
+        if domain in ("x.com", "twitter.com", "t.co"):
+            # t.coは解決済みのはずだが、解決失敗したものは除外
+            if "t.co" in domain:
+                continue
+            # x.com/twitter.comの自分のツイートへのリンクは除外
             continue
-        filename = make_filename(doi=doi)
-        pdf_url = resolve_doi_to_pdf(doi)
-        if pdf_url and download_pdf(pdf_url, filename):
-            state["downloaded_dois"].append(doi)
-            downloaded.append(filename)
-            continue
-        for url in paper_urls:
-            direct = try_direct_pdf_from_url(url)
-            if direct and download_pdf(direct, filename):
-                state["downloaded_dois"].append(doi)
-                downloaded.append(filename)
-                break
+        if link.startswith("http"):
+            external_links.append(link)
 
-    # DOIが無いがURLがある場合
-    for url in paper_urls:
-        if url in state["downloaded_urls"]:
-            continue
-        url_dois = extract_dois([url])
-        if any(d in state["downloaded_dois"] for d in url_dois):
-            continue
-        direct = try_direct_pdf_from_url(url)
-        if direct:
-            filename = make_filename(url=url)
-            if download_pdf(direct, filename):
-                state["downloaded_urls"].append(url)
-                downloaded.append(filename)
+    # 要約
+    summary = summarize_tweet(text)
 
-    return downloaded
+    # リンクチェック
+    link_results = []
+    for link in external_links:
+        logger.info(f"  リンクチェック: {link}")
+        result = check_link(link)
+        status_str = "OK" if result["alive"] else f"NG({result['status'] or 'Error'})"
+        paper_str = f" [論文: {result['paper_source']}]" if result["is_paper"] else ""
+        doi_str = f" [DOI: {result['doi']}]" if result["doi"] else ""
+        logger.info(f"    -> {status_str}{paper_str}{doi_str}")
+        link_results.append(result)
+
+    if not external_links:
+        logger.info("  外部リンクなし")
+
+    return {
+        "timestamp": timestamp,
+        "summary": summary,
+        "original_text": text,
+        "links": link_results,
+        "has_paper_links": any(r["is_paper"] for r in link_results),
+        "all_links_alive": all(r["alive"] for r in link_results) if link_results else True,
+    }
+
+
+def format_result(result: dict, index: int) -> str:
+    """結果を見やすいテキストに整形"""
+    lines = []
+    lines.append(f"{'='*60}")
+    lines.append(f"ツイート #{index + 1}  ({result['timestamp'] or '日時不明'})")
+    lines.append(f"{'='*60}")
+    lines.append(f"")
+    lines.append(f"【要約】")
+    lines.append(f"  {result['summary']}")
+    lines.append(f"")
+
+    if result["links"]:
+        paper_count = sum(1 for r in result["links"] if r["is_paper"])
+        alive_count = sum(1 for r in result["links"] if r["alive"])
+        total = len(result["links"])
+        lines.append(f"【リンク】 {total}件 (生存: {alive_count}/{total}, 論文: {paper_count}件)")
+        lines.append(f"")
+
+        for lr in result["links"]:
+            status_icon = "○" if lr["alive"] else "×"
+            paper_icon = "📄" if lr["is_paper"] else "  "
+
+            lines.append(f"  {status_icon} {paper_icon} {lr['url']}")
+
+            if lr["final_url"] != lr["url"]:
+                lines.append(f"       -> {lr['final_url']}")
+
+            details = []
+            if lr["status"]:
+                details.append(f"HTTP {lr['status']}")
+            if lr["is_paper"] and lr["paper_source"]:
+                details.append(f"論文サイト: {lr['paper_source']}")
+            if lr["doi"]:
+                details.append(f"DOI: {lr['doi']}")
+            if lr["error"]:
+                details.append(f"エラー: {lr['error']}")
+            if details:
+                lines.append(f"       ({', '.join(details)})")
+            lines.append(f"")
+    else:
+        lines.append(f"【リンク】 なし")
+        lines.append(f"")
+
+    return "\n".join(lines)
+
+
+def format_summary_report(results: list[dict]) -> str:
+    """全体のサマリーレポートを生成"""
+    lines = []
+    total_tweets = len(results)
+    paper_tweets = sum(1 for r in results if r["has_paper_links"])
+    total_links = sum(len(r["links"]) for r in results)
+    alive_links = sum(sum(1 for lr in r["links"] if lr["alive"]) for r in results)
+    dead_links = total_links - alive_links
+    paper_links = sum(sum(1 for lr in r["links"] if lr["is_paper"]) for r in results)
+
+    lines.append(f"")
+    lines.append(f"{'#'*60}")
+    lines.append(f"  サマリーレポート")
+    lines.append(f"{'#'*60}")
+    lines.append(f"")
+    lines.append(f"  対象アカウント: @{TARGET_USERNAME}")
+    lines.append(f"  チェック日時:   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"")
+    lines.append(f"  ツイート数:     {total_tweets}")
+    lines.append(f"  論文紹介ツイート: {paper_tweets}")
+    lines.append(f"")
+    lines.append(f"  リンク総数:     {total_links}")
+    lines.append(f"    生存:         {alive_links}")
+    lines.append(f"    デッド:       {dead_links}")
+    lines.append(f"    論文リンク:   {paper_links}")
+    lines.append(f"")
+
+    # デッドリンク一覧
+    if dead_links > 0:
+        lines.append(f"  --- デッドリンク一覧 ---")
+        for i, r in enumerate(results):
+            for lr in r["links"]:
+                if not lr["alive"]:
+                    lines.append(f"  × {lr['url']}")
+                    lines.append(f"    (ツイート #{i+1}, {r['timestamp'] or '日時不明'})")
+        lines.append(f"")
+
+    # 論文リンク一覧
+    if paper_links > 0:
+        lines.append(f"  --- 論文リンク一覧 ---")
+        for i, r in enumerate(results):
+            for lr in r["links"]:
+                if lr["is_paper"]:
+                    status = "○" if lr["alive"] else "×"
+                    doi_str = f" (DOI: {lr['doi']})" if lr["doi"] else ""
+                    lines.append(f"  {status} {lr['url']}{doi_str}")
+                    lines.append(f"    (ツイート #{i+1}, {r['timestamp'] or '日時不明'})")
+        lines.append(f"")
+
+    lines.append(f"{'#'*60}")
+    return "\n".join(lines)
 
 
 def run_once(headless: bool = True):
-    """1回の実行: ブラウザでツイートを取得して論文をダウンロード"""
+    """1回の実行: ブラウザでツイートを取得して要約・リンクチェック"""
     state = load_state()
 
     tweets = scrape_tweets(TARGET_USERNAME, headless=headless)
@@ -463,16 +548,34 @@ def run_once(headless: bool = True):
         logger.info("ツイートが取得できませんでした")
         return
 
-    total_downloaded = []
+    results = []
     for tweet in tweets:
-        downloaded = process_tweet(tweet, state)
-        total_downloaded.extend(downloaded)
+        result = process_tweet(tweet, state)
+        results.append(result)
 
     save_state(state)
 
-    logger.info(f"=== 完了: {len(total_downloaded)} 件のPDFをダウンロードしました ===")
-    for f in total_downloaded:
-        logger.info(f"  - {f}")
+    # 結果をコンソール出力
+    output_lines = []
+    for i, result in enumerate(results):
+        formatted = format_result(result, i)
+        print(formatted)
+        output_lines.append(formatted)
+
+    # サマリー出力
+    summary = format_summary_report(results)
+    print(summary)
+    output_lines.append(summary)
+
+    # ファイル保存
+    output_path = Path(OUTPUT_DIR)
+    output_path.mkdir(parents=True, exist_ok=True)
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = output_path / f"tweet_check_{timestamp_str}.txt"
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(output_lines))
+
+    logger.info(f"=== 結果を {output_file} に保存しました ===")
 
 
 def watch_mode(headless: bool = True):
@@ -480,7 +583,7 @@ def watch_mode(headless: bool = True):
     logger.info(
         f"定期監視モード開始: @{TARGET_USERNAME} を {CHECK_INTERVAL_MINUTES}分間隔で監視します"
     )
-    logger.info(f"ダウンロード先: {Path(DOWNLOAD_DIR).resolve()}")
+    logger.info(f"結果出力先: {Path(OUTPUT_DIR).resolve()}")
     logger.info("停止するには Ctrl+C を押してください")
 
     while True:
@@ -497,7 +600,7 @@ def main():
     global CHECK_INTERVAL_MINUTES, SCROLL_COUNT
 
     parser = argparse.ArgumentParser(
-        description="X(Twitter)アカウントから論文PDFを自動ダウンロード（ブラウザ版・API不要）"
+        description="X(Twitter)アカウントのツイート要約・リンクチェック（ブラウザ版・API不要）"
     )
     parser.add_argument(
         "--watch", action="store_true", help="定期監視モード"
