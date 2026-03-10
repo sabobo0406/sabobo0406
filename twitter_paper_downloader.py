@@ -443,6 +443,8 @@ def watch_mode(headless: bool = True):
 
 # ── エントリーポイント ────────────────────────────────────
 def main():
+    global CHECK_INTERVAL_MINUTES, SCROLL_COUNT
+
     parser = argparse.ArgumentParser(
         description="X(Twitter)アカウントから論文PDFを自動ダウンロード（ブラウザ版・API不要）"
     )
@@ -464,10 +466,8 @@ def main():
     args = parser.parse_args()
 
     if args.interval:
-        global CHECK_INTERVAL_MINUTES
         CHECK_INTERVAL_MINUTES = args.interval
     if args.scroll:
-        global SCROLL_COUNT
         SCROLL_COUNT = args.scroll
 
     headless = not args.head
