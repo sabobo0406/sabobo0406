@@ -22,6 +22,8 @@ import logging
 import argparse
 import hashlib
 from pathlib import Path
+from __future__ import annotations
+from typing import Optional
 from urllib.parse import urlparse, unquote
 
 import requests
@@ -249,7 +251,7 @@ def filter_paper_urls(urls: list[str]) -> list[str]:
 
 
 # ── DOI -> PDF 解決 ───────────────────────────────────────
-def resolve_doi_to_pdf(doi: str) -> str | None:
+def resolve_doi_to_pdf(doi: str) -> Optional[str]:
     if not UNPAYWALL_EMAIL:
         logger.warning("UNPAYWALL_EMAIL 未設定のため、Unpaywall APIをスキップします")
         return None
@@ -275,7 +277,7 @@ def resolve_doi_to_pdf(doi: str) -> str | None:
     return None
 
 
-def try_direct_pdf_from_url(url: str) -> str | None:
+def try_direct_pdf_from_url(url: str) -> Optional[str]:
     if "arxiv.org/abs/" in url:
         return url.replace("/abs/", "/pdf/") + ".pdf"
     if "arxiv.org/pdf/" in url:
