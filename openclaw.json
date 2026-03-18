@@ -7,11 +7,11 @@
     },
     "list": [
       {
-        "id": "skill-bus",
-        "name": "Skill Bus Agent",
-        "description": "Self-improving task orchestration sub-agent. Manages task queues, monitors skill quality, detects external changes, and drives continuous improvement.",
+        "id": "ouroboros",
+        "name": "Ouroboros",
+        "description": "The eternal loop — self-improving task orchestration sub-agent. Manages task queues, monitors skill quality, detects external changes, and drives continuous improvement.",
         "model": "anthropic/claude-sonnet-4-20250514",
-        "workspace": ".agents/skill-bus",
+        "workspace": ".agents/ouroboros",
         "tools": {
           "allow": [
             "exec",

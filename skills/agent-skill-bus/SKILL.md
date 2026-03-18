@@ -1,7 +1,7 @@
 ---
 name: agent-skill-bus
-emoji: "\U0001F680"
-description: Orchestrates AI agent task management by integrating Prompt Request Bus, Self-Improving Skills, and Knowledge Watcher into a unified self-improving workflow.
+emoji: "\U0001F40D"
+description: "Ouroboros: Orchestrates AI agent task management by integrating Prompt Request Bus, Self-Improving Skills, and Knowledge Watcher into a unified self-improving closed loop."
 user-invocable: true
 requires:
   bins:

@@ -6,10 +6,10 @@
 - 😄 Pronouns: ...
 - ⚡ Fun fact: ...
 
-## Agent Skill Bus - OpenClaw Skills
+## Ouroboros - OpenClaw Sub-Agent
 
-Self-improving task orchestration framework for AI agents, implemented as OpenClaw skills.
-Based on [ShunsukeHayashi/agent-skill-bus](https://github.com/ShunsukeHayashi/agent-skill-bus).
+Self-improving task orchestration sub-agent for AI agent systems, powered by [agent-skill-bus](https://github.com/ShunsukeHayashi/agent-skill-bus).
+Like the serpent that devours its own tail, Ouroboros forms an eternal closed loop of execution, monitoring, and self-improvement.
 
 ### Skills
 
@@ -45,19 +45,24 @@ node skills/knowledge-watcher/watcher.js list --status new
 ### Directory Structure
 
 ```
+AGENTS.md                         # Sub-agent delegation rules
+openclaw.json                     # Agent configuration
+.agents/ouroboros/                 # Ouroboros sub-agent
+├── soul.md                       #   Identity & response format
+└── agent.md                      #   Module instructions
 skills/
-├── agent-skill-bus/          # Orchestrator skill
+├── agent-skill-bus/              # Orchestrator skill
 │   └── SKILL.md
-├── prompt-request-bus/       # Task queue
+├── prompt-request-bus/           # Task queue
 │   ├── SKILL.md
 │   └── bus.js
-├── self-improving-skills/    # Quality loop
+├── self-improving-skills/        # Quality loop
 │   ├── SKILL.md
 │   └── improve.js
-└── knowledge-watcher/        # Change monitoring
+└── knowledge-watcher/            # Change monitoring
     ├── SKILL.md
     └── watcher.js
-data/                         # JSONL data files (auto-created)
+data/                             # JSONL data files (auto-created)
 ```
 
 <!---
