@@ -1,0 +1,35 @@
+{
+  "agents": {
+    "defaults": {
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "maxSpawnDepth": 2,
+      "maxChildrenPerAgent": 5
+    },
+    "list": [
+      {
+        "id": "skill-bus",
+        "name": "Skill Bus Agent",
+        "description": "Self-improving task orchestration sub-agent. Manages task queues, monitors skill quality, detects external changes, and drives continuous improvement.",
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "workspace": ".agents/skill-bus",
+        "tools": {
+          "allow": [
+            "exec",
+            "read",
+            "write"
+          ],
+          "deny": [
+            "sessions_spawn",
+            "sessions_send",
+            "browser",
+            "canvas",
+            "cron"
+          ]
+        },
+        "subagents": {
+          "enabled": false
+        }
+      }
+    ]
+  }
+}
