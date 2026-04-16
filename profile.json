@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.org/Person",
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "identifier": "sabobo0406",
+  "alternateName": "sabobo0406",
+  "url": "https://github.com/sabobo0406",
+  "description": "AIと医療に興味があり、女性の健康を改善するAI開発に取り組みたい学習者。",
+  "knowsAbout": [
+    "AI",
+    "医療",
+    "女性の健康 (Women's Health)"
+  ],
+  "knowsLanguage": [
+    "ja",
+    "en"
+  ],
+  "learning": [
+    "AI"
+  ],
+  "seeks": [
+    "女性の健康を改善するAIプロジェクトでの協働"
+  ],
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "contactType": "primary",
+    "name": "Instagram DM"
+  },
+  "profileSections": {
+    "bio": "about/bio.md",
+    "skills": "about/skills.md",
+    "projects": "about/projects.md",
+    "interests": "about/interests.md",
+    "contact": "about/contact.md"
+  },
+  "aiAccess": {
+    "entryPoint": "llms.txt",
+    "structuredData": "profile.json",
+    "humanReadable": "README.md",
+    "lastUpdated": "2026-04-16"
+  }
+}

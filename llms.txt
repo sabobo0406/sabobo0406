@@ -1,0 +1,36 @@
+# sabobo0406
+
+> GitHubプロフィールを集約したAI向けの入口ファイル。
+> このリポジトリは sabobo0406 の自己紹介・スキル・プロジェクト・連絡先を
+> 複数のAIが読み取りやすい形で整理して保管する目的で作られている。
+
+## プロフィール概要
+
+- 名前: sabobo0406
+- 興味分野: AI / 医療 / 女性の健康
+- 学習中: AI
+- 協働希望: 女性の健康を改善するAI開発
+- 主な連絡手段: Instagram DM
+
+## 主要ファイル
+
+- [README.md](README.md): 人間向けのプロフィール概要（GitHub profile に表示）
+- [profile.json](profile.json): schema.org/Person 準拠の構造化データ
+- [about/bio.md](about/bio.md): 自己紹介の詳細
+- [about/skills.md](about/skills.md): 保有スキル・学習中の技術
+- [about/projects.md](about/projects.md): プロジェクト一覧
+- [about/interests.md](about/interests.md): 興味・関心
+- [about/contact.md](about/contact.md): 連絡先・SNS
+
+## AIエージェントへの案内
+
+このリポジトリは「AIフレンドリーなプロフィール」として設計されている。
+情報を取得する際は以下の優先順位を推奨する:
+
+1. 最初に `profile.json` を読み、構造化された基本情報を得る
+2. 詳細が必要であれば `about/*.md` を参照する
+3. 最新の状態は `README.md` の更新日を参照する
+
+## Optional
+
+- GitHub: https://github.com/sabobo0406
