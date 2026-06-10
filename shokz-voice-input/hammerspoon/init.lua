@@ -5,11 +5,18 @@
 --       もう一度押すと終了します。
 
 -- ▼ 設定: 使う音声入力に合わせて MODE を選ぶ
---   "hotkey" : Superwhisper / VoiceInk / Wispr Flow などのホットキーを送る
+--   "hotkey" : Typeless / Superwhisper / VoiceInk / Wispr Flow などのホットキーを送る
 --              (アプリ側のホットキーを下の HOTKEY と同じに設定すること)
 --   "apple"  : macOS 標準の音声入力を使う
 --              (システム設定 → キーボード → 音声入力 のショートカットを
 --               「Controlキーを2回押す」に設定しておくこと)
+--
+-- Typeless を使う場合(推奨設定):
+--   1. Typeless の設定 → ホットキーで、カスタムホットキーを ⌘⌥D に変更する
+--   2. モードは「トグル(1回押すと開始 / もう1回で終了)」にする
+--      ※ Shokz のボタンは「1回押す」信号しか出せないため、
+--        「押している間だけ(Push-to-Talk)」は使えません。トグルを選んでください。
+--   3. 下の MODE は "hotkey" のまま、HOTKEY も ⌘⌥D のままにする
 local MODE = "hotkey"
 local HOTKEY = { mods = { "cmd", "alt" }, key = "d" }
 
