@@ -6,6 +6,19 @@
 
 ---
 
+## ⚡ クイックスタート(方法A・Typeless / Mac)
+
+Mac のターミナルに**この1行を貼るだけ**で、Hammerspoon のインストール〜設定ファイル配置〜起動まで自動で行います:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sabobo0406/sabobo0406/claude/shokz-earbud-voice-input-ycnjy4/shokz-voice-input/install.sh | bash
+```
+
+実行後、画面に出る残り3ステップ(① Hammerspoon の権限許可 ② Typeless のホットキーを `⌘⌥D`・トグルに設定 ③ マイクを Shokz に選択)を行えば完了です。
+手動で1つずつ進めたい場合は、下の各方法の手順を参照してください。
+
+---
+
 ## 方法A: 追加ハードなし — Shokz 本体のマルチファンクションボタンを使う(Mac)
 
 Shokz の再生/一時停止ボタンは、Mac には「メディアキー」として届きます。
