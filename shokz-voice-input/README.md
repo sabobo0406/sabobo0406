@@ -42,11 +42,12 @@ Shokz の再生/一時停止ボタンは、Mac には「メディアキー」と
 [Typeless](https://www.typeless.com/) は AI 整形つきの高精度な音声入力アプリです。方法A と組み合わせる手順:
 
 1. Typeless をインストールして起動(初回のマイク・アクセシビリティ権限を許可)
-2. メニューバーの Typeless アイコン → **Settings → Shortcuts** を開き、音声入力(dictation)の開始/停止ショートカットを **`⌘⌥D`(Command + Option + D)** に変更
+2. Typeless の **設定 → キーボードショートカット** を開き、「音声入力」のショートカットを **`⌃⌥⌘D`(Control + Option + Command + D)** に変更
+   - ※ `⌘D` はブラウザの「ブックマーク追加」、`⌥⌘D` は「Dock の表示/非表示」と衝突するため避けます
 3. Typeless は**デフォルトでトグル動作**(1回押すと開始 / もう1回で停止)なので、特別なモード切替は不要
    - ※ Shokz のボタンは「1回押す」信号しか出せないので、押しっぱなしで使う「Push-to-Talk」は Shokz では使えません(トグルでそのまま動きます)
    - ※「押している間だけ」を Shokz でやりたい場合は **方法B** を参照
-4. `init.lua` は初期状態(`MODE = "hotkey"`、`HOTKEY = ⌘⌥D`)のままで OK
+4. `init.lua` は初期状態(`MODE = "hotkey"`、`HOTKEY = ⌃⌥⌘D`)のままで OK
 5. システム設定 → サウンド → 入力 で **Shokz をマイクに選択**
 
 → Shokz のボタンを押す → Typeless が録音開始 → 話す → もう一度ボタンを押す → 文字がカーソル位置(Claude / ChatGPT のチャット欄など)に入力されます。
