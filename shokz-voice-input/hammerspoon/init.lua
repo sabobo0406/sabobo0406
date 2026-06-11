@@ -1,35 +1,31 @@
--- Shokz のマルチファンクションボタン(再生/一時停止)で音声入力をトグルする
+-- Shokz のボタンで音声入力をトグルする(OpenComm 等・アプリ非対応モデル向け)
 -- ~/.hammerspoon/init.lua に置いて Hammerspoon をリロードしてください。
 --
--- 動作: ボタン1回目 → 音声入力開始(録音中)
---       ボタン2回目 → 録音停止 → 文字起こしがチャット欄に入力される
---                     →(AUTO_SEND が true なら)数秒後に Enter を自動で押して
---                       AI にメッセージを送信する
+-- 動作: 引き金ボタン1回目 → 音声入力開始(録音中)
+--       引き金ボタン2回目 → 録音停止 → 文字起こしがチャット欄に入力される
+--                          →(AUTO_SEND が true なら)数秒後に Enter を自動送信
 
--- ▼ 設定: 使う音声入力に合わせて MODE を選ぶ
---   "hotkey" : Typeless / Superwhisper / VoiceInk / Wispr Flow などのホットキーを送る
---              (アプリ側のホットキーを下の HOTKEY と同じに設定すること)
---   "apple"  : macOS 標準の音声入力を使う
---              (システム設定 → キーボード → 音声入力 のショートカットを
---               「Controlキーを2回押す」に設定しておくこと)
+-- ▼ 引き金にする Shokz のボタンを選ぶ(TRIGGER)
+--   "PLAY"       : マルチファンクションボタンを「短く1回」押す(=再生/一時停止)
+--                  ※ 長押しすると Siri が起動してしまい捕まえられないので「短く」
+--   "SOUND_UP"   : 音量+ ボタン(短押し)。Siri を絶対に呼ばないので確実。
+--                  代わりに音量+操作は無効になります(このスクリプトが横取りするため)
+--   "SOUND_DOWN" : 音量− ボタン(短押し)。同上。
 --
--- Typeless を使う場合(推奨設定):
---   1. Typeless の 設定 → キーボードショートカット で、「音声入力」の
---      ショートカットを ⌃⌥D(Control + Option + D)に変更する
---      (Typeless はショートカットを最大3キーまでしか登録できないため3キー構成)
---   2. Typeless はデフォルトでトグル動作(1回押すと開始 / もう1回で停止)なので、
---      特別なモード切替は不要。そのまま ⌃⌥D を設定すればよい。
---   3. 下の MODE は "hotkey" のまま、HOTKEY も ⌃⌥D のままにする
---      (⌘D=ブックマーク, ⌥⌘D=Dock表示切替, ⌃⌘D=辞書 と衝突するため避ける)
---   4. Typeless 側の「Fn」ショートカットは残してもよいが、Fn で開始/停止すると
---      このスクリプトの録音状態の認識とズレるので、Shokz 運用中はボタン側に統一を推奨
+--   まず "PLAY" を短押しで試し、どうしても Siri が出てしまう/反応しない場合は
+--   "SOUND_UP" か "SOUND_DOWN" に変えてください(確実に動きます)。
+local TRIGGER = "PLAY"
+
+-- ▼ 使う音声入力に合わせて MODE を選ぶ
+--   "hotkey" : Typeless / Superwhisper / VoiceInk などのホットキーを送る
+--   "apple"  : macOS 標準の音声入力(Control 2回押し)を使う
 local MODE = "hotkey"
+-- Typeless: 設定 → キーボードショートカット →「音声入力」を ⌃⌥D に設定(最大3キー)
 local HOTKEY = { mods = { "ctrl", "alt" }, key = "d" }
 
--- ▼ 自動送信: 録音停止(2回目のボタン)のあと AUTO_SEND_DELAY 秒待ってから
---   Enter を押し、チャット欄に入った文字を AI に送信する。
---   長く話して文字起こしが間に合わないと途中で送信されることがあるので、
---   その場合は AUTO_SEND_DELAY を増やす。手動で Enter したい人は false にする。
+-- ▼ 自動送信: 録音停止のあと AUTO_SEND_DELAY 秒待って Enter を押し、AI に送信する。
+--   長く話して文字起こしが間に合わない場合は AUTO_SEND_DELAY を増やす。
+--   自分で Enter したい人は false に。
 local AUTO_SEND = true
 local AUTO_SEND_DELAY = 4 -- 秒
 
@@ -42,7 +38,6 @@ end
 
 local function toggleDictation()
   if MODE == "apple" then
-    -- 「Controlキーを2回押す」をエミュレートして標準の音声入力を起動/停止
     tapCtrl()
     hs.timer.doAfter(0.1, tapCtrl)
   else
@@ -50,36 +45,40 @@ local function toggleDictation()
   end
 end
 
+local function onTrigger()
+  toggleDictation()
+  if dictating then
+    -- 2回目: 録音停止 → 文字起こしを待って自動送信
+    dictating = false
+    if AUTO_SEND then
+      hs.alert.show("⏹ 停止(" .. AUTO_SEND_DELAY .. "秒後に送信)", 1.5)
+      hs.timer.doAfter(AUTO_SEND_DELAY, function()
+        hs.eventtap.keyStroke({}, "return", 0)
+        hs.alert.show("📨 送信", 1)
+      end)
+    else
+      hs.alert.show("⏹ 停止", 1)
+    end
+  else
+    -- 1回目: 録音開始
+    dictating = true
+    hs.alert.show("🎤 録音中", 1)
+  end
+end
+
 -- メディアキー(systemDefined イベント)を横取りする。
 -- グローバル変数にしないと GC されてタップが止まるので注意。
 shokzVoiceTap = hs.eventtap.new({ hs.eventtap.event.types.systemDefined }, function(e)
   local sys = e:systemKey()
-  if sys and sys.key == "PLAY" and not sys["repeat"] then
+  if sys and sys.key == TRIGGER and not sys["repeat"] then
     if sys.down then
-      toggleDictation()
-      if dictating then
-        -- 2回目: 録音停止 → 文字起こしを待って自動送信
-        dictating = false
-        if AUTO_SEND then
-          hs.alert.show("⏹ 停止(" .. AUTO_SEND_DELAY .. "秒後に送信)", 1.5)
-          hs.timer.doAfter(AUTO_SEND_DELAY, function()
-            hs.eventtap.keyStroke({}, "return", 0)
-            hs.alert.show("📨 送信", 1)
-          end)
-        else
-          hs.alert.show("⏹ 停止", 1)
-        end
-      else
-        -- 1回目: 録音開始
-        dictating = true
-        hs.alert.show("🎤 録音中", 1)
-      end
+      onTrigger()
     end
-    -- true を返してイベントを握りつぶす(音楽が再生されないように)
+    -- true を返してイベントを握りつぶす(音楽再生や音量変化が起きないように)
     return true
   end
   return false
 end)
 shokzVoiceTap:start()
 
-hs.alert.show("Shokz voice input: ready")
+hs.alert.show("Shokz voice input: ready (" .. TRIGGER .. ")")
