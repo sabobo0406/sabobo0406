@@ -87,9 +87,10 @@ echo "    そのあとメニューバーの 🔨 → Reload Config。"
 echo "    「Shokz voice input: ready」と出れば成功です。"
 echo
 info "【2】Typeless の設定"
-echo "    Typeless → 設定 → ホットキー で、カスタムホットキーを ⌘⌥D に変更。"
-echo "    録音モードは「トグル(1回押すと開始 / もう1回で終了)」を選ぶ。"
-echo "    (Push-to-Talk は Shokz では使えないため)"
+echo "    Typeless → Settings → Shortcuts で、音声入力の開始/停止ショートカットを"
+echo "    ⌘⌥D に変更する(メニューバーの Typeless アイコンから Settings を開ける)。"
+echo "    Typeless はデフォルトでトグル動作(1回押して開始 / もう1回で停止)なので"
+echo "    モード切替は不要。Push-to-Talk は Shokz では使えません。"
 echo
 info "【3】マイクを Shokz にする"
 echo "    システム設定 → サウンド → 入力 で Shokz を選択。"
