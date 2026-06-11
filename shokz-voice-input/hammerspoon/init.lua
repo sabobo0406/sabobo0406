@@ -13,15 +13,16 @@
 --
 -- Typeless を使う場合(推奨設定):
 --   1. Typeless の 設定 → キーボードショートカット で、「音声入力」の
---      ショートカットを ⌃⌥⌘D(Control + Option + Command + D)に変更する
+--      ショートカットを ⌃⌥D(Control + Option + D)に変更する
+--      (Typeless はショートカットを最大3キーまでしか登録できないため3キー構成)
 --   2. Typeless はデフォルトでトグル動作(1回押すと開始 / もう1回で停止)なので、
---      特別なモード切替は不要。そのまま ⌃⌥⌘D を設定すればよい。
+--      特別なモード切替は不要。そのまま ⌃⌥D を設定すればよい。
 --      ※ Shokz のボタンは「1回押す」信号しか出せないため、
 --        「押している間だけ(Push-to-Talk)」の使い方はできません。
---   3. 下の MODE は "hotkey" のまま、HOTKEY も ⌃⌥⌘D のままにする
---      (⌘D はブラウザのブックマーク、⌥⌘D は Dock 表示切替と衝突するため避ける)
+--   3. 下の MODE は "hotkey" のまま、HOTKEY も ⌃⌥D のままにする
+--      (⌘D=ブックマーク, ⌥⌘D=Dock表示切替, ⌃⌘D=辞書 と衝突するため避ける)
 local MODE = "hotkey"
-local HOTKEY = { mods = { "ctrl", "alt", "cmd" }, key = "d" }
+local HOTKEY = { mods = { "ctrl", "alt" }, key = "d" }
 
 local function tapCtrl()
   hs.eventtap.event.newKeyEvent("ctrl", true):post()

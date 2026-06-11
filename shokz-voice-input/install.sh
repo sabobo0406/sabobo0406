@@ -88,7 +88,7 @@ echo "    「Shokz voice input: ready」と出れば成功です。"
 echo
 info "【2】Typeless の設定"
 echo "    Typeless → 設定 → キーボードショートカット で、「音声入力」の"
-echo "    ショートカットを ⌃⌥⌘D(Control+Option+Command+D)に変更する。"
+echo "    ショートカットを ⌃⌥D(Control+Option+D)に変更する。"
 echo "    Typeless はデフォルトでトグル動作(1回押して開始 / もう1回で停止)なので"
 echo "    モード切替は不要。Push-to-Talk は Shokz では使えません。"
 echo
