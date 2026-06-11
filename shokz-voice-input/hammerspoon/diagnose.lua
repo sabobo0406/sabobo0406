@@ -1,53 +1,38 @@
--- 【診断用】Shokz のボタンが実際にどんなイベントを送っているか調べる
+-- 【診断用 v2】Shokz のボタンが送る systemDefined イベントだけを記録する
+--
+-- キーボード入力は記録しないので、スクショ用の ⌘⇧5 などのノイズが混ざりません。
+-- 結果は「消えないコンソール」にも残るので、スクショ不要でコピペできます。
 --
 -- 使い方:
 --   1. これを ~/.hammerspoon/init.lua に入れて、メニューバー 🔨 → Reload Config
---   2. 「診断モード: ボタンを押してください」と出たら Shokz のボタンを押す
---   3. 画面に出た内容(systemKey / keyDown / NSEvent ...)をスクショで送る
+--   2. メニューバー 🔨 → Console を開く(ログが残る窓)
+--   3. Mac で音楽を数秒再生してから、次を1つずつ 2〜3回押す:
+--        ・マルチファンクションボタン(短押し)
+--        ・音量+ ボタン
+--        ・音量− ボタン
+--   4. Console に出る [DIAG] の行を全部コピーして送る
 --
--- 結果の見方:
---   - 「systemKey = PLAY」と出る → 再生ボタンとして届いている(本命の動作)
---   - 何も出ないのに Siri が起動する → ボタンが Bluetooth の「音声アシスタント
---     呼び出し」信号(HFP)を送っている。この信号は OS の奥で処理されるため
---     Hammerspoon からは見えず、横取りできない。
---     → Shokz アプリ(iPhone)でボタンの割り当てを「再生/一時停止」に変更する
---
--- ⚠️ 注意: 診断中はすべてのキー入力が画面とログに表示されます。
---          診断モード中はパスワード等を入力しないでください。
--- ※ 調べ終わったら、元の init.lua に戻してください。
+-- ⚠️ 終わったら元の init.lua に戻してください。
 
--- すべての systemDefined イベント(メディアキー・音声アシスタント等)を記録
+local n = 0
 diagSysTap = hs.eventtap.new({ hs.eventtap.event.types.systemDefined }, function(e)
   local sys = e:systemKey()
-  local raw = e:getRawEventData()
+  local raw = e:getRawEventData() or {}
+  local d = raw.NSEventData or {}
+  n = n + 1
   local msg
   if sys and sys.key then
-    msg = "systemKey = " .. tostring(sys.key)
-        .. " (down=" .. tostring(sys.down)
-        .. ", repeat=" .. tostring(sys["repeat"]) .. ")"
+    msg = string.format("#%d  systemKey=%s down=%s repeat=%s",
+      n, tostring(sys.key), tostring(sys.down), tostring(sys["repeat"]))
   else
-    -- systemKey に出ない特殊イベント(Siri/dictation など)の生データ
-    local d = raw and raw.NSEventData or {}
-    msg = "systemDefined(other) subtype="
-        .. tostring(d.subtype) .. " data1=" .. tostring(d.data1)
+    msg = string.format("#%d  other subtype=%s data1=%s data2=%s",
+      n, tostring(d.subtype), tostring(d.data1), tostring(d.data2))
   end
   print("[DIAG] " .. msg)
-  hs.alert.show(msg, 4)
-  return false  -- 握りつぶさず素通り(挙動を変えないため)
+  hs.alert.show(msg, 3)
+  return false -- 素通り(挙動は変えない)
 end)
 diagSysTap:start()
 
--- 通常のキー入力(キーボードショートカット化されている場合)も記録
-diagKeyTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, function(e)
-  local key = hs.keycodes.map[e:getKeyCode()] or ("code:" .. e:getKeyCode())
-  local mods = {}
-  for m, on in pairs(e:getFlags()) do if on then mods[#mods+1] = m end end
-  local msg = "keyDown = " .. table.concat(mods, "+") .. (#mods > 0 and "+" or "") .. tostring(key)
-  print("[DIAG] " .. msg)
-  hs.alert.show(msg, 4)
-  return false
-end)
-diagKeyTap:start()
-
-hs.alert.show("診断モード: Shokz のボタンを押してください", 6)
-print("[DIAG] diagnostic ready")
+hs.alert.show("診断モード v2: 🔨→Console を開いてボタンを押してください", 8)
+print("[DIAG] ready - press Shokz buttons (MFB short / Vol+ / Vol-) while Mac plays audio")
