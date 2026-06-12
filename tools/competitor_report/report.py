@@ -82,7 +82,7 @@ def render_report(date: str, results: dict) -> str:
         if r["growing"]:
             lines.append("### 📈 伸びた投稿")
             lines.append("")
-            lines.append("| 投稿 | 再生/閲覧 (+増分) | いいね (+増分) | コメント (+増分) |")
+            lines.append("| 投稿 | 主要指標 (+増分) | いいね (+増分) | コメント (+増分) |")
             lines.append("|---|---|---|---|")
             for d in r["growing"]:
                 p, g = d["post"], d["growth"]
@@ -98,7 +98,7 @@ def render_report(date: str, results: dict) -> str:
         if r["new"]:
             lines.append("### 🆕 好調な新規投稿")
             lines.append("")
-            lines.append("| 投稿 | 公開日 | 再生/閲覧 | いいね |")
+            lines.append("| 投稿 | 公開日 | 主要指標 | いいね |")
             lines.append("|---|---|---|---|")
             for p in r["new"]:
                 m = p["metrics"]

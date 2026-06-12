@@ -1,5 +1,8 @@
 """動画・音声を文字起こしして、記事の下書きまで変換する。
 
+文字起こしはローカルの Whisper(無料)、記事下書きは Claude Code CLI 経由で
+生成する(Claude Pro/Max のサブスクで動くため API の従量課金は不要)。
+
 使い方:
     python main.py 動画.mp4
     python main.py 音声.m4a --style note --model-size medium
@@ -7,6 +10,8 @@
 
 import argparse
 import os
+import shutil
+import subprocess
 import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,17 +23,22 @@ STYLE_PROMPTS = {
     "seo": "SEO を意識した解説記事。検索意図に答える構成で、要点を箇条書きも使って整理する。",
 }
 
-DRAFT_SYSTEM = """あなたは日本語のコンテンツ編集者です。
-話し言葉の文字起こしを、公開できる品質の記事下書きに書き直します。
+DRAFT_PROMPT = """あなたは日本語のコンテンツ編集者です。
+次の話し言葉の文字起こしを、公開できる品質の記事下書きに書き直してください。
 
 ルール:
 - 話の内容・主張・具体例は変えず、話し言葉特有の冗長さ(えー、あの、繰り返し等)だけを除く
 - 文字起こしに無い情報を創作しない
-- 出力は Markdown で、次の構成にする:
+- 記事スタイル: {style}
+- 出力は Markdown のみ(前置きや解説は不要)で、次の構成にする:
   1. タイトル案を3つ
   2. リード文(2〜3文)
   3. 見出し付きの本文
   4. まとめ
+
+<文字起こし>
+{transcript}
+</文字起こし>
 """
 
 
@@ -41,30 +51,29 @@ def transcribe(path: str, model_size: str, lang: str) -> str:
     return "".join(seg.text for seg in segments).strip()
 
 
-def generate_draft(transcript: str, style: str) -> str:
-    import anthropic
+def generate_draft(transcript: str, style: str) -> str | None:
+    """Claude Code CLI(サブスク)で記事下書きを生成する。
 
-    client = anthropic.Anthropic()
-    print("記事下書きを生成中...", file=sys.stderr)
-    with client.messages.stream(
-        model="claude-opus-4-8",
-        max_tokens=64000,
-        thinking={"type": "adaptive"},
-        system=DRAFT_SYSTEM,
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    f"次の文字起こしを記事の下書きにしてください。\n"
-                    f"スタイル: {STYLE_PROMPTS[style]}\n\n"
-                    f"<文字起こし>\n{transcript}\n</文字起こし>"
-                ),
-            }
-        ],
-    ) as stream:
-        response = stream.get_final_message()
+    CLI が無い場合は None を返す(main 側でプロンプトをファイル保存する)。
+    """
+    if not shutil.which("claude"):
+        return None
 
-    return next(b.text for b in response.content if b.type == "text")
+    prompt = DRAFT_PROMPT.format(style=STYLE_PROMPTS[style], transcript=transcript)
+    print("記事下書きを生成中... (claude CLI)", file=sys.stderr)
+    result = subprocess.run(
+        ["claude", "-p"],
+        input=prompt,
+        capture_output=True,
+        text=True,
+        timeout=1200,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"claude CLI がエラーを返しました:\n{result.stderr.strip()}\n"
+            "`claude` を一度起動してログイン済みか確認してください。"
+        )
+    return result.stdout.strip()
 
 
 def main() -> int:
@@ -83,13 +92,6 @@ def main() -> int:
     if not os.path.isfile(args.input):
         print(f"ファイルが見つかりません: {args.input}", file=sys.stderr)
         return 1
-    if not args.no_draft and not os.environ.get("ANTHROPIC_API_KEY"):
-        print(
-            "環境変数 ANTHROPIC_API_KEY が未設定です。"
-            "文字起こしのみ行う場合は --no-draft を付けてください。",
-            file=sys.stderr,
-        )
-        return 1
 
     stem = os.path.splitext(os.path.basename(args.input))[0]
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -104,6 +106,20 @@ def main() -> int:
         return 0
 
     draft = generate_draft(transcript, args.style)
+    if draft is None:
+        # claude CLI が無い環境では、claude.ai に貼り付けられるプロンプトを保存する
+        prompt_path = os.path.join(OUTPUT_DIR, f"{stem}_prompt.txt")
+        with open(prompt_path, "w", encoding="utf-8") as f:
+            f.write(DRAFT_PROMPT.format(style=STYLE_PROMPTS[args.style], transcript=transcript))
+        print(
+            "claude コマンドが見つからないため、プロンプトを保存しました。\n"
+            f"  {prompt_path}\n"
+            "この内容を claude.ai に貼り付けると下書きが作れます。\n"
+            "(Claude Code のインストール: npm install -g @anthropic-ai/claude-code)",
+            file=sys.stderr,
+        )
+        return 0
+
     draft_path = os.path.join(OUTPUT_DIR, f"{stem}_draft.md")
     with open(draft_path, "w", encoding="utf-8") as f:
         f.write(draft + "\n")

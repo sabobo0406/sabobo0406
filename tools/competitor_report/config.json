@@ -1,9 +1,24 @@
 {
   "accounts": [
     {
+      "platform": "note",
+      "name": "競合A (note)",
+      "urlname": "ここにnoteのID"
+    },
+    {
+      "platform": "x",
+      "name": "競合B (X)",
+      "username": "ここにXのユーザー名"
+    },
+    {
+      "platform": "instagram",
+      "name": "競合C (Instagram)",
+      "username": "ここにInstagramのユーザー名"
+    },
+    {
       "platform": "csv",
-      "name": "サンプル競合 (Instagram)",
-      "csv_path": "data/manual/sample_instagram.csv"
+      "name": "競合D (Voicy・手入力)",
+      "csv_path": "data/manual/sample_voicy.csv"
     }
   ],
   "growth_threshold": 2.0,
