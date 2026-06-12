@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# 生成物
+tools/dashboard/dashboard.html
+tools/transcribe_draft/output/
