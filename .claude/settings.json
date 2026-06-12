@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '(.tool_input.url // \"\") as $u | if ($u | test(\"^https?://(www\\\\.)?(x|twitter|mobile\\\\.twitter)\\\\.com/\")) then {hookSpecificOutput:{hookEventName:\"PreToolUse\",updatedInput:(.tool_input + {url:(\"https://r.jina.ai/\" + $u)})}} else empty end'",
+            "statusMessage": "Rewriting x.com URL to Jina Reader"
+          }
+        ]
+      }
+    ]
+  }
+}
