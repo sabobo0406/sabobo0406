@@ -1,0 +1,33 @@
+name: 毎朝の競合巡回レポート
+
+on:
+  schedule:
+    # 22:00 UTC = 翌朝 7:00 JST
+    - cron: "0 22 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 競合巡回を実行
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python tools/competitor_report/main.py
+
+      - name: レポートをコミット
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tools/competitor_report/data/snapshots tools/competitor_report/reports
+          git diff --cached --quiet || git commit -m "毎朝の競合巡回レポート $(date +%Y-%m-%d)"
+          git push

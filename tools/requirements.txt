@@ -1,0 +1,8 @@
+# 共通(標準ライブラリのみで動くツールが多いため最小限)
+
+# transcribe_draft: 記事下書き生成(Claude API)
+anthropic>=0.92.0
+
+# transcribe_draft: ローカル文字起こし(初回実行時にモデルを自動ダウンロード)
+# ffmpeg が別途必要です: https://ffmpeg.org/download.html
+faster-whisper>=1.0.0
