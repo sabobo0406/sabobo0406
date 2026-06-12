@@ -42,6 +42,14 @@ if ! command -v brew >/dev/null 2>&1; then
   echo "   インストール後、このスクリプトをもう一度実行してください。"
   exit 1
 fi
+# Homebrew の権限チェック(所有者がズレていると install が失敗するため先に検知)
+BREW_PREFIX="$(brew --prefix 2>/dev/null || echo /opt/homebrew)"
+if [[ -d "$BREW_PREFIX" && ! -w "$BREW_PREFIX" ]]; then
+  warn "Homebrew のフォルダ($BREW_PREFIX)に書き込めません。先にこれを実行してください:"
+  echo "   sudo chown -R $(whoami) $BREW_PREFIX"
+  echo "   (Mac のログインパスワードを聞かれます。入力後、このスクリプトを再実行)"
+  exit 1
+fi
 ok "Homebrew を確認"
 
 # 2. Hammerspoon
